@@ -1,0 +1,74 @@
+
+name: Sound Beat APK Builder
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract ZIP
+        run: |
+          ZIP=$(find . -maxdepth 2 -name "SoundBeat-Android-Liquid-Glass-v2.1.zip" | head -1)
+          if [ -z "$ZIP" ]; then
+            echo "Sound Beat ZIP not found!"
+            exit 1
+          fi
+          mkdir extracted
+          unzip -o "$ZIP" -d extracted
+          cp -a extracted/. .
+          rm -rf extracted
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Check project setup
+        run: |
+          ls -la
+          if [ -f package.json ]; then
+            npm install
+          fi
+
+      - name: Generate Android project
+        run: |
+          if [ -f setup-android.sh ]; then
+            chmod +x setup-android.sh
+            ./setup-android.sh
+          elif [ -f package.json ]; then
+            npm install @capacitor/android
+            npx cap add android
+            npx cap sync android
+          else
+            echo "Android setup files not found"
+            exit 1
+          fi
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SoundBeat-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          
